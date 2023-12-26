@@ -1,31 +1,30 @@
 ﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
 namespace CountLetters
 {
-    public class GitHubDetails
+    public class GitHubDetails : IGitHubDetails
     {
-        //Get all files from a repo
-        public static async Task<Directory> GetGitRepo(string owner, string name)
+        private readonly IHttpClientFactory _httpClientFactory;
+
+        public GitHubDetails(IHttpClientFactory httpClientFactory)
         {
-            using HttpClient client = new HttpClient();
-            Directory root = await ReadGitDirectory(GitHubConstant.GitRoot, client, String.Format(GitHubConstant.GitPath, owner, name));
+            _httpClientFactory = httpClientFactory;
+        }
+        //Get all files from a repo
+        public async Task<Directory> GetGitRepo(string owner, string name)
+        {
+            Directory root = await ReadGitDirectory(GitHubConstant.GitRoot, String.Format(GitHubConstant.GitPath, owner, name));
             return root;
         }
 
         //recursively get the contents of all files and subdirectories within a directory 
-        private static async Task<Directory> ReadGitDirectory(String name, HttpClient client, string uri)
+        private async Task<Directory> ReadGitDirectory(String name, string uri)
         {
             //get the directory contents
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.Add(GitHubConstant.HeaderName, GitHubConstant.HeaderValue);
-
+            var httpClient = _httpClientFactory.CreateClient();
             //parse result
-            using HttpResponseMessage response = await client.SendAsync(request);
+            using HttpResponseMessage response = await httpClient.SendAsync(request);
             String jsonStr = await response.Content.ReadAsStringAsync(); ;
             GitFileInfo[] dirContents = JsonConvert.DeserializeObject<GitFileInfo[]>(jsonStr);
 
@@ -38,15 +37,15 @@ namespace CountLetters
             {
                 if (file.type == GitHubConstant.GitDir)
                 { //read in the subdirectory
-                    Directory sub = await ReadGitDirectory(file.name, client, file._links.self);
+                    Directory sub = await ReadGitDirectory(file.name, file._links.self);
                     result.subDirs.Add(sub);
                 }
-                else if(file.type == GitHubConstant.GitFile && (new FileInfo(file.name).Extension == GitHubConstant.GitJSFile || new FileInfo(file.name).Extension == GitHubConstant.GitTSFile))
+                else if (file.type == GitHubConstant.GitFile && (new FileInfo(file.name).Extension == GitHubConstant.GitJSFile || new FileInfo(file.name).Extension == GitHubConstant.GitTSFile))
                 { //get the file contents;
                     using HttpRequestMessage downLoadUrl = new HttpRequestMessage(HttpMethod.Get, file.download_url);
                     request.Headers.Add(GitHubConstant.HeaderName, GitHubConstant.HeaderValue);
 
-                    using HttpResponseMessage contentResponse = await client.SendAsync(downLoadUrl);
+                    using HttpResponseMessage contentResponse = await httpClient.SendAsync(downLoadUrl);
                     String content = await contentResponse.Content.ReadAsStringAsync();
 
                     FileData data;
