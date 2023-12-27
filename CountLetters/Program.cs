@@ -1,7 +1,13 @@
-﻿// See https://aka.ms/new-console-template for more information
-using CountLetters;
+﻿using CountLetters;
+using Microsoft.Extensions.DependencyInjection;
 
-var task = GitHubDetails.GetGitRepo("tisonkun", "lodash");
+var serviceProvider = new ServiceCollection()
+            .AddHttpClient()
+            .AddTransient<IGitHubDetails, GitHubDetails>()
+            .BuildServiceProvider();
+var myApiService = serviceProvider.GetRequiredService<IGitHubDetails>();
+
+var task = myApiService.GetGitRepo("tisonkun", "lodash");
 task.Wait();
 var dir = task.Result;
 
